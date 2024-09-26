@@ -117,3 +117,5 @@ dmypy.json
 
 # VS Code
 .vscode/
+
+service_key.json
