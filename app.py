@@ -145,7 +145,7 @@ def login():
     if request.method == "POST":
         email = request.form.get("email-field")
         password = request.form.get("password")
-        # state = request.form.get("state")
+        state = request.form.get("state")
 
         try:
             # Authenticate user using Pyrebase
@@ -157,11 +157,11 @@ def login():
             authorization_code = generate_authorization_code(uid)
             redirect_url = 'https://layla.amazon.com/api/skill/link/M28J7ZKDG13G8U'
             # below is the actual code that is need for production
-            # redirect_uri_final = f"{redirect_url}?state={state}&code={authorization_code}"
-            print('working successfully ******')
-            return redirect('/')
+            redirect_uri_final = f"{redirect_url}?state={state}&code={authorization_code}"
+            # print('working successfully ******')
+            return redirect(redirect_uri_final)
         except Exception as e:
-            print('Error: ******', e)
+            # print('Error: ******', e)
             return render_template("index.html", message="Invalid username or password")
     
     return render_template('index.html')
@@ -169,7 +169,7 @@ def login():
 
 
 # ---------------------------------------- device discovery ------------------------------------------
-
+@app.route('/get_device_details', methods=['GET'])
 def get_device_details(request):
     authorization_header = request.META.get('HTTP_AUTHORIZATION')
     if authorization_header and authorization_header.startswith('Bearer '):
