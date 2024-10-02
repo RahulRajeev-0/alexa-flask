@@ -1,6 +1,8 @@
 
 from flask import Flask, render_template, request, redirect, jsonify
 import os
+import string
+import secrets
 import pyrebase
 from dotenv import load_dotenv
 import jwt
@@ -30,112 +32,146 @@ SECRET_KEY = os.getenv('SECRET_KEY')
 
 
 
-# function for generating code 
+
 def generate_authorization_code(uid):
-    """
-    Generates a JWT authorization code that encodes the user's UID 
-    """
+    '''
+    generate a random url safe string 
+    also save the generated code in the db of the user inside alexa node 
+    '''
+    characters = string.ascii_letters + string.digits
+    authorization_code = ''.join(secrets.choice(characters) for _ in range(16))
     try:
-        # Define the payload with uid only
-        payload = {
-            'uid': uid
-        }
-        # Encode the payload using the secret key and return the JWT token as the authorization code
-        authorization_code = jwt.encode(payload, SECRET_KEY, algorithm='HS256')
-
-        # Store the authorization code in the database
-        db.child('new_db').child('users').child(uid).child('alexa').update({"authorization_code": authorization_code})
-
-        return authorization_code
+        db.child("new_db").child("users").child(uid).child("alexa").update({"authorization_code": authorization_code})
     except Exception as e:
-        print('Error:', e)
-        return None
+        pass
+    return authorization_code
 
+def refresh_access_token(code):
+    users_data = db.child("new_db").child("users").get().val()
+    if not users_data:
+        return "None"
 
-def decode_authorization_code(authorization_code):
-    """
-    Decodes the JWT authorization code to retrieve the UID.
-    """
     try:
-        # Decode the JWT token using the secret key
-        payload = jwt.decode(authorization_code, SECRET_KEY, algorithms=['HS256'])
-        # Extract the uid from the payload
-        uid = payload['uid']
-        return uid
-    except jwt.InvalidTokenError:
-        print("Invalid authorization code")
-        return None
+        for uid, user_data in users_data.items():
+            alexa_data = user_data.get("alexa", {})
+            if alexa_data.get("authorization_code") == code:
+                access_token_prefix = "Atzr1|"
+                characters = string.ascii_letters + string.digits
+                random_part = ''.join(secrets.choice(characters) for _ in range(32))
+                refresh_token = access_token_prefix + random_part
+                db.child("new_db").child("users").child(uid).child("alexa").update({"refresh_token": refresh_token})
+                return refresh_token
+
+    except Exception as e:
+        print(f"Error generating refresh token: {e}")
+        return "None"
+
+    return "None"
 
 
+def refresh_token_to_refresh(existing_refresh_token):
+    users_data = db.child("new_db").child("users").get().val()
+    if not users_data:
+        return "None"
 
-ACCESS_TOKEN_EXPIRES = timedelta(minutes=60) 
-REFRESH_TOKEN_EXPIRES = timedelta(days=360)
-
-
-def generate_jwt_token(identity, token_type, expires_in, uid):
-    """
-    Generates JWT token with an expiration time.
-    token_type: "access" or "refresh"
-    """
-    now = datetime.now()
-    exp = now + expires_in
-    payload = {
-        'sub': identity,
-        'iat': now,
-        'exp': exp,
-        'type': token_type,
-        'uid':uid
-    }
-    token = jwt.encode(payload, SECRET_KEY, algorithm='HS256')
-    if token_type == "access":
-        db.child("new_db").child("users").child(uid).child("alexa").update({"access_token": token})
-    elif token_type == 'refresh':
-        db.child("new_db").child("users").child(uid).child("alexa").update({"refresh_token": token})
-    return token
-
-
-def verify_jwt_token(token, token_type):
-    """
-    Verifies and decodes JWT token.
-    token_type: "access" or "refresh"
-    """
     try:
-        decoded_token = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
-        if decoded_token.get('type') == token_type:
-            return decoded_token['sub']
-        return None
-    except jwt.ExpiredSignatureError:
-        return None
-    except jwt.InvalidTokenError:
-        return None
+        for uid, user_data in users_data.items():
+            alexa_data = user_data.get("alexa", {})
+            if alexa_data.get("refresh_token") == existing_refresh_token:
+                access_token_prefix = "Atzr1|"
+                characters = string.ascii_letters + string.digits
+                new_refresh_token = ''.join(secrets.choice(characters) for _ in range(32))
+                db.child("new_db").child("users").child(uid).child("alexa").update({"refresh_token": new_refresh_token})
+                return new_refresh_token
+
+    except Exception as e:
+        print(f"Error generating new refresh token: {e}")
+        return "None"
+
+    return "None"
+
+
+
+def generate_access_token_login(refresh_token):
+    users_data = db.child("new_db").child("users").get().val()
+    if not users_data:
+        return "None"
+
+    try:
+        for uid, user_data in users_data.items():
+            alexa_data = user_data.get("alexa", {})
+            if alexa_data.get("refresh_token") == refresh_token:
+                access_token_prefix = "Atza1|"
+                characters = string.ascii_letters + string.digits
+                random_part = ''.join(secrets.choice(characters) for _ in range(32))
+                access_token = access_token_prefix + random_part
+                db.child("new_db").child("users").child(uid).child("alexa").update({"access_token": access_token})
+                return access_token
+
+    except Exception as e:
+        print(f"Error generating access token with refresh token: {e}")
+        return "None"
+
+    return "None"
+
+
+def generate_access_token(code):
+    '''
+    generating acceess token based on the authorization code 
+    '''
+    users_data = db.child("new_db").child("users").get().val()
+    if not users_data:
+        return "None"
+
+    try:
+        for uid, user_data in users_data.items():
+            alexa_data = user_data.get("alexa", {})
+            if alexa_data.get("authorization_code") == code:
+
+                # using the access token prefix to validate our access tokens 
+                # every access token is having the same prefix 
+                access_token_prefix = "Atza1|"
+                characters = string.ascii_letters + string.digits
+                random_part = ''.join(secrets.choice(characters) for _ in range(32))
+                access_token = access_token_prefix + random_part
+                db.child("new_db").child("users").child(uid).child("alexa").update({"access_token": access_token})
+                return access_token
+
+    except Exception as e:
+        print(f"Error generating access token: {e}")
+        return "None"
+
+    return "None"
+
 
 
 @app.route('/access-token', methods=['POST'])
 def access_token():
-    """
-    Handles access token generation either during login or refresh process.
-    """
-    code = request.json.get("code")
-    refresh_token = request.json.get("refresh_token")
+    '''
+    access token is generated on two situations , 
+    in the login time , when there is no refresh token to generate access token 
+    after that when the access token expires to get new one (in that time the refresh token is present)
+    '''
+    if request.method == 'POST':
+        code = request.POST.get("code")
+        refresh_token = request.POST.get("refresh_token")
+        if refresh_token is not None:
+            # generating new access token if the refresh token is present
+            new_access_token = generate_access_token_login(refresh_token)
+            # generating new refreash token for the access token 
+            new_refresh_token = refresh_token_to_refresh(refresh_token)
+            return jsonify({"access_token": new_access_token, "token_type": "bearer", "expires_in": 86400, "refresh_token": new_refresh_token})
 
-    if refresh_token:
-        # If refresh token is present, generate new access token
-        user_id = verify_jwt_token(refresh_token, 'refresh')
-        if user_id:
-            new_access_token = generate_jwt_token(user_id, 'access', ACCESS_TOKEN_EXPIRES)
-            return jsonify({"access_token": new_access_token, "token_type": "bearer", "expires_in": 3600}), 200
-        return jsonify({"error": "Invalid or expired refresh token"}), 401
-
-    elif code:
-        # Generate new access and refresh token based on authorization code
-        user_id = decode_authorization_code(code)
-        if user_id:
-            access_token = generate_jwt_token(user_id, 'access', ACCESS_TOKEN_EXPIRES)
-            refresh_token = generate_jwt_token(user_id, 'refresh', REFRESH_TOKEN_EXPIRES)
-            return jsonify({"access_token": access_token, "token_type": "bearer", "expires_in": 3600, "refresh_token": refresh_token}), 200
-        return jsonify({"error": "Invalid authorization code"}), 401
-
-    return jsonify({"error": "Missing code or refresh_token"}), 400
+        elif code is not None:
+            # if the refreash token is not present but the code is present 
+            # then generates a new access and refresh token 
+            access_token = generate_access_token(code)
+            refresh_token = refresh_access_token(code)
+            return jsonify({"access_token": access_token, "token_type": "bearer", "expires_in": 86400, "refresh_token": refresh_token})
+        else:
+            return jsonify({"error": "Missing code or refresh_token"}, status=400)
+    else:
+        return jsonify({"error": "Unsupported request method"}, status=405)
 
 
 
@@ -151,7 +187,7 @@ def login():
             # Authenticate user using Pyrebase
             user = auth.sign_in_with_email_and_password(email, password)
             uid = user['localId']
-            print("&&&&&&&&&&&&&&&&&&&&&")
+           
             print(db.child('new_db').child('users').child(uid).get().val())
 
             authorization_code = generate_authorization_code(uid)
@@ -161,7 +197,7 @@ def login():
             # print('working successfully ******')
             return redirect(redirect_uri_final)
         except Exception as e:
-            # print('Error: ******', e)
+            print('Error: ******', e)
             return render_template("index.html", message="Invalid username or password")
     
     return render_template('index.html')
@@ -174,33 +210,38 @@ def get_device_details(request):
     authorization_header = request.META.get('HTTP_AUTHORIZATION')
     if authorization_header and authorization_header.startswith('Bearer '):
         access_token_get = authorization_header[len('Bearer '):]
-        decoded_token = jwt.decode(access_token_get, SECRET_KEY, algorithms=['HS256'])
-        uid = decoded_token['uid']
-        user = db.child('new_db').child('users').child(uid).get().val()
+        all_users_data = db.child("new_db").child("users").get().val()
 
-        if not user:
+        if not all_users_data:
             return jsonify({"error": "No user data found"}, status=404)
 
-        
-        alexa_tokens = user.get("alexa", {})
-        if alexa_tokens.get("access_token") == access_token_get:
-            device_id = []
-            user_homes = user.get("homes", {})
-            process_homes(user_homes, device_id)
+        for uid, user_data in all_users_data.items():
+            alexa_tokens = user_data.get("alexa", {})
+            # comparing the access token 
+            if alexa_tokens.get("access_token") == access_token_get:
+                device_id = []
+                user_homes = user_data.get("homes", {})
+                process_homes(user_homes, device_id)
 
-            guest_data = db.child("new_db").child("users").child(uid).child("homes").child("access").get().val()
-            if guest_data:
-                for guest_home_id, access_info in guest_data.items():
-                    owner_uid = access_info.get("owner_id")
-                    if owner_uid:
-                        owner_home_data = db.child("new_db").child("users").child(owner_uid).child("homes").child(guest_home_id).get().val()
-                        if owner_home_data:
-                            process_homes({guest_home_id: owner_home_data}, device_id)
+                guest_data = db.child("new_db").child("users").child(uid).child("homes").child("access").get().val()
 
-            dev_product_id = [i["id"] + "_" + i["product_id"] for i in device_id]
-            product_name = [i["name"] for i in device_id]
+                # getting the devices of other user how gave you access , for that we need to get the user uid from acess node data
+                # after getting the uid we fatch the product_id of that perticular user products 
+                if guest_data:
+                    for guest_home_id, access_info in guest_data.items():
+                        owner_uid = access_info.get("owner_id")
+                        if owner_uid:
+                            owner_home_data = db.child("new_db").child("users").child(owner_uid).child("homes").child(guest_home_id).get().val()
+                            if owner_home_data:
+                                process_homes({guest_home_id: owner_home_data}, device_id)
 
-            return jsonify({"name": product_name, "device_id": dev_product_id})
+                dev_product_id = [i["id"] + "_" + i["product_id"] for i in device_id]
+                product_name = [i["name"] for i in device_id]
+
+                # example 
+                # dev_product_id = ["device1_3ch1frb214", "device2_3ch1frb214"]
+                # product_name = ["TestLight1",]
+                return jsonify({"name": product_name, "device_id": dev_product_id})
 
     return jsonify({"error": "Unauthorized"}, status=401)
 
@@ -214,12 +255,13 @@ def process_homes(homes_data, device_id):
                     devices = product_data.get("devices", {})
                     for device_key, device_data in devices.items():
                         device_id.append({
-                            "id": device_key,
+                            "id": device_key,  # device key will be device 1 then device2
                             "name": device_data.get("name"),
                             "product_id": product_id
                         })
     except Exception as e:
         print("Error:", e)
+
 
 if __name__ == '__main__':
     app.run(debug=True)
