@@ -152,26 +152,32 @@ def access_token():
     in the login time , when there is no refresh token to generate access token 
     after that when the access token expires to get new one (in that time the refresh token is present)
     '''
-    if request.method == 'POST':
-        code = request.POST.get("code")
-        refresh_token = request.POST.get("refresh_token")
-        if refresh_token is not None:
-            # generating new access token if the refresh token is present
-            new_access_token = generate_access_token_login(refresh_token)
-            # generating new refreash token for the access token 
-            new_refresh_token = refresh_token_to_refresh(refresh_token)
-            return jsonify({"access_token": new_access_token, "token_type": "bearer", "expires_in": 86400, "refresh_token": new_refresh_token})
+    try:
+        if request.method == 'POST':
+            print("\n***********************\n")
+            print("Login is successfull and access token url is called 🪲")
+        
+            code = request.POST.get("code")
+            refresh_token = request.POST.get("refresh_token")
+            if refresh_token is not None:
+                # generating new access token if the refresh token is present
+                new_access_token = generate_access_token_login(refresh_token)
+                # generating new refreash token for the access token 
+                new_refresh_token = refresh_token_to_refresh(refresh_token)
+                return jsonify({"access_token": new_access_token, "token_type": "bearer", "expires_in": 86400, "refresh_token": new_refresh_token})
 
-        elif code is not None:
-            # if the refreash token is not present but the code is present 
-            # then generates a new access and refresh token 
-            access_token = generate_access_token(code)
-            refresh_token = refresh_access_token(code)
-            return jsonify({"access_token": access_token, "token_type": "bearer", "expires_in": 86400, "refresh_token": refresh_token})
+            elif code is not None:
+                # if the refreash token is not present but the code is present 
+                # then generates a new access and refresh token 
+                access_token = generate_access_token(code)
+                refresh_token = refresh_access_token(code)
+                return jsonify({"access_token": access_token, "token_type": "bearer", "expires_in": 86400, "refresh_token": refresh_token})
+            else:
+                return jsonify({"error": "Missing code or refresh_token"}, status=400)
         else:
-            return jsonify({"error": "Missing code or refresh_token"}, status=400)
-    else:
-        return jsonify({"error": "Unsupported request method"}, status=405)
+            return jsonify({"error": "Unsupported request method"}, status=405)
+    except Exception as e:
+        print(" \n Error happended in the access token genereation \n", e)
 
 
 
@@ -194,7 +200,7 @@ def login():
             redirect_url = 'https://layla.amazon.com/api/skill/link/M28J7ZKDG13G8U'
             # below is the actual code that is need for production
             redirect_uri_final = f"{redirect_url}?state={state}&code={authorization_code}"
-            # print('working successfully ******')
+            
             return redirect(redirect_uri_final)
         except Exception as e:
             print('Error: ******', e)
