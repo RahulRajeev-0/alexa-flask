@@ -157,8 +157,9 @@ def access_token():
             print("\n***********************\n")
             print("Login is successfull and access token url is called 🪲")
         
-            code = request.POST.get("code")
-            refresh_token = request.POST.get("refresh_token")
+            code = request.form.get("code") or (request.json.get("code") if request.is_json else None)
+            refresh_token = request.form.get("refresh_token") or (request.json.get("refresh_token") if request.is_json else None)
+
             if refresh_token is not None:
                 # generating new access token if the refresh token is present
                 new_access_token = generate_access_token_login(refresh_token)
