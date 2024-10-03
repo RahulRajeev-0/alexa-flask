@@ -205,8 +205,8 @@ def login():
         except Exception as e:
             print('Error: ******', e)
             return render_template("index.html", message="Invalid username or password")
-    
-    return render_template('index.html')
+    state = request.args.get('state')
+    return render_template('index.html',  state=state)
 
 
 
