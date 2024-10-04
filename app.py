@@ -272,7 +272,7 @@ def process_homes(homes_data, device_id):
                             "product_id": product_id
                         })
     except Exception as e:
-        logging.error(f"Error processing homes: {e}")
+        print("Found an error in process home function ---- ", e)
 
 
 if __name__ == '__main__':
