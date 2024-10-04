@@ -213,7 +213,7 @@ def login():
 
 # ---------------------------------------- device discovery ------------------------------------------
 @app.route('/get_device_details', methods=['GET'])
-def get_device_details(request):
+def get_device_details():
     authorization_header = request.META.get('HTTP_AUTHORIZATION')
     if authorization_header and authorization_header.startswith('Bearer '):
         access_token_get = authorization_header[len('Bearer '):]
