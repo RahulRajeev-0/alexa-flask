@@ -250,8 +250,13 @@ def get_device_details():
                             if owner_home_data:
                                 process_homes({guest_home_id: owner_home_data}, device_id)
 
+                
+                
                 dev_product_id = [i["id"] + "_" + i["product_id"] for i in device_id]
+
                 product_name = [i["name"] for i in device_id]
+                print("\n ************* ((((((((((((((((()))))))))))))) \n")
+                print({"name":product_name, "device_id": dev_product_id})
 
                 return jsonify({"name": product_name, "device_id": dev_product_id}), 200
 
