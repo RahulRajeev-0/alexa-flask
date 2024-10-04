@@ -214,43 +214,48 @@ def login():
 # ---------------------------------------- device discovery ------------------------------------------
 @app.route('/get_device_details', methods=['GET'])
 def get_device_details():
-    authorization_header = request.META.get('HTTP_AUTHORIZATION')
+    authorization_header = request.headers.get('Authorization')
     if authorization_header and authorization_header.startswith('Bearer '):
         access_token_get = authorization_header[len('Bearer '):]
-        all_users_data = db.child("new_db").child("users").get().val()
+        try:
+            all_users_data = db.child("new_db").child("users").get().val()
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
 
         if not all_users_data:
-            return jsonify({"error": "No user data found"}, status=404)
+            return jsonify({"error": "No user data found"}), 404
 
         for uid, user_data in all_users_data.items():
             alexa_tokens = user_data.get("alexa", {})
-            # comparing the access token 
             if alexa_tokens.get("access_token") == access_token_get:
                 device_id = []
                 user_homes = user_data.get("homes", {})
-                process_homes(user_homes, device_id)
+                if user_homes:
+                    process_homes(user_homes, device_id)
 
-                guest_data = db.child("new_db").child("users").child(uid).child("homes").child("access").get().val()
+                try:
+                    guest_data = db.child("new_db").child("users").child(uid).child("homes").child("access").get().val()
+                except Exception as e:
+                    return jsonify({"error": str(e)}), 500
 
-                # getting the devices of other user how gave you access , for that we need to get the user uid from acess node data
-                # after getting the uid we fatch the product_id of that perticular user products 
                 if guest_data:
                     for guest_home_id, access_info in guest_data.items():
                         owner_uid = access_info.get("owner_id")
                         if owner_uid:
-                            owner_home_data = db.child("new_db").child("users").child(owner_uid).child("homes").child(guest_home_id).get().val()
+                            try:
+                                owner_home_data = db.child("new_db").child("users").child(owner_uid).child("homes").child(guest_home_id).get().val()
+                            except Exception as e:
+                                return jsonify({"error": str(e)}), 500
+
                             if owner_home_data:
                                 process_homes({guest_home_id: owner_home_data}, device_id)
 
                 dev_product_id = [i["id"] + "_" + i["product_id"] for i in device_id]
                 product_name = [i["name"] for i in device_id]
 
-                # example 
-                # dev_product_id = ["device1_3ch1frb214", "device2_3ch1frb214"]
-                # product_name = ["TestLight1",]
-                return jsonify({"name": product_name, "device_id": dev_product_id})
+                return jsonify({"name": product_name, "device_id": dev_product_id}), 200
 
-    return jsonify({"error": "Unauthorized"}, status=401)
+    return jsonify({"error": "Unauthorized"}), 401
 
 def process_homes(homes_data, device_id):
     try:
@@ -262,12 +267,12 @@ def process_homes(homes_data, device_id):
                     devices = product_data.get("devices", {})
                     for device_key, device_data in devices.items():
                         device_id.append({
-                            "id": device_key,  # device key will be device 1 then device2
+                            "id": device_key,
                             "name": device_data.get("name"),
                             "product_id": product_id
                         })
     except Exception as e:
-        print("Error:", e)
+        logging.error(f"Error processing homes: {e}")
 
 
 if __name__ == '__main__':
